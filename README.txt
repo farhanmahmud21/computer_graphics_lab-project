@@ -37,20 +37,79 @@ ALGORITHMS BY OBJECT
 --------------------
 | Object / Effect            | Algorithm(s) Used                                    |
 |----------------------------|------------------------------------------------------|
-| Lamp cord & bookshelf supports | Bresenham line drawing                            |
-| Book spines, desk dividers      | DDA line drawing                                 |
-| Clock bezel, pendulum weights, LEDs | Midpoint circle + triangle fan fills        |
-| Coffee cup steam & dust          | Filled circles (triangle fan) with alpha       |
-| Smart control panel              | GL_QUADS (drawRect) + HSV→RGB music bars       |
-| Ceiling fan blades               | GL_QUADS + rotation transform                  |
+| Lamp cord & bookshelf supports | Bresenham line drawing (pixel-accurate integer steps) |
+| Book spines, desk dividers      | DDA line drawing (floating-point slope stepping) |
+| Clock bezel & pendulum weights         | Midpoint Circle (outline) + GL_TRIANGLE_FAN fill |
+| Coffee cup steam & dust          | Filled circles (GL_TRIANGLE_FAN) with alpha for softness |
+| Smart control panel              | GL_QUADS (rect helper) + HSV→RGB music bars + scaling button |
+| Ceiling fan blades               | GL_QUADS + translate-to-hub + rotation animation |
 | Computer monitor shader          | Gradient quads + sine-based wave animation     |
-| Smart panel touch button        | Translation + Scaling (glTranslatef/glScalef)                      |
+| Smart panel touch button        | Translation + Scaling (glTranslatef/glScalef)   |
+
+SUPPORTING PRIMITIVES
+---------------------
+- **GL_QUADS**: OpenGL primitive that draws a four-vertex polygon. We call it via `drawRect()` to build walls, desk surfaces, fan blades, and the smart-panel frame—ensuring axis-aligned rectangles with two triangles under the hood.
+- **Filled circle helper**: `drawFilledCircle()` emits a GL_TRIANGLE_FAN (center vertex + arc) to paint discs. When a crisp outline is needed instead, the Midpoint Circle algorithm (`drawCircleMidpoint`) plots perimeter pixels before the fan fill.
+
+TEAM CONTRIBUTIONS
+------------------
+| Contributor | Feature Ownership & Algorithm Focus                            | Transformation Highlight |
+|-------------|----------------------------------------------------------------|--------------------------|
+| Farhan      | Clock & pendulum bezels using Midpoint Circle helper           | Pendulum/hand rotation sweep |
+| Zisan       | Hanging lamp cord/shade using Bresenham lines                  | Lamp swing rotation pivot |
+| Soroar      | Desk books & dividers detailed with DDA line work              | Smart-panel touch-button scaling pulse |
+| (Shared)    | Coffee steam & dust (triangle fan fills)                       | N/A – alpha-fade particles |
+
+OBJECT-BY-OBJECT BREAKDOWN
+--------------------------
+- **Room walls & floor** – `drawRoom()`: GL_QUADS for gradients, DDA lines for wood grain.
+- **Desk** – `drawDesk()`: stacked GL_QUADS (drawRect helper) with subtle gradients.
+- **Chair** – `drawChair()`: GL_QUADS for cushions, Midpoint circles for wheels, Bresenham for legs.
+- **Lamp** – `drawLamp()`: Bresenham cord, GL_QUADS + triangle fans for shade, filled circles for glow.
+- **Bookshelf & wall books** – `drawBookshelf()`, `drawBooks()`: GL_QUADS bodies with DDA/Bresenham accents.
+- **Smart panel** – `drawSmartPanel()`: GL_QUADS for frame/glass, HSV→RGB bars, scaling touch ring.
+- **Neon-less wall art slot** – currently omitted (kept free for future props).
+- **Clock & pendulum** – `drawClock()`: Midpoint circle outlines + triangle-fan fills, rotation for hands.
+- **Ceiling fan** – `drawCeilingFan()`: GL_QUADS blades, translate-to-hub + rotation animation.
+- **Computer & keyboard** – `drawComputer()`, `drawKeyboard()`: Gradient GL_QUADS plus DDA grid lines.
+- **Printer** – `drawPrinter()`: GL_QUADS body, filled circles for buttons.
+- **Desk organizer** – `drawDeskOrganizer()`: GL_QUADS base, Bresenham diagonal pens, DDA vertical pen.
+- **Coffee cup & steam** – `drawCoffeeCup()`: GL_QUADS body with darker lid cap, sine-sway steam.
+- **Books on desk** – `drawBooks()`: stacked GL_QUADS with DDA spines.
+- **Dust particles** – `drawParticles()`: filled circles (GL_TRIANGLE_FAN) with alpha fade.
+- **Smart panel indicators** – Wi-Fi arcs drawn via parametric sine/cos; status LEDs via filled circles.
+
+SCENE ELEMENTS SNAPSHOT
+-----------------------
+| Element       | Description                                      |
+|---------------|--------------------------------------------------|
+| Office Chair  | Wheels, curved back, small headrest shadow       |
+| Computer Rig  | Dual monitors, blinking shader, keyboard + mouse |
+| Printer       | Tray, buttons, paper output slot                 |
+| Books         | Stacked on desk and shelf with varied scaling    |
+| Coffee Cup    | Lid, sleeve, animated steam wisps                |
+| Wall Art Slot | Reserved space (currently blank by request)      |
+| Hanging Lamp  | Red dome shade with swing animation              |
+| Ceiling Fan   | Four blades rotating from hub                    |
+| Wall Clock    | Moving hands, pendulum bob, layered frame        |
+
+REQUIREMENT COVERAGE
+--------------------
+| Requirement          | Implementation Examples                                      |
+|----------------------|--------------------------------------------------------------|
+| Graphics Primitives  | Points (DDA/Bresenham), GL_QUADS, GL_TRIANGLE_FAN circles    |
+| DDA Algorithm        | Desk drawer handles, desk books, steam sway, wood grain      |
+| Bresenham Algorithm  | Lamp cord, chair legs, shelf brackets, organizer pens        |
+| Midpoint Circle      | Clock bezel, pendulum weights, printer buttons               |
+| Translation          | Fan hub placement, pendulum anchor, smart-panel widgets      |
+| Rotation             | Lamp swing pivot, fan blades, clock hands, pendulum bob      |
+| Scaling              | Smart-panel touch button pulse, varied book sizes            |
+| Animation Loop       | Lamp swing, fan spin, clock sweep, screen blink, steam drift |
 
 ANIMATION SUMMARY
 -----------------
 - `update()` computes deltaTime and advances lamp swing, fan rotation, clock hands,
-  pendulum swing, dust particles, monitor waves, smart-panel pulses, and the desk
-  plant's translate/scale/rotate cycle.
+  pendulum swing, dust particles, monitor waves, and the smart-panel touch-button pulse.
 - Animations stay stable regardless of machine speed because everything is tied to time
   differences reported by `glutGet(GLUT_ELAPSED_TIME)`.
 

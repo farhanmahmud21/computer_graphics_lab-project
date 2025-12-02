@@ -137,7 +137,7 @@ void drawCircleMidpoint(int cx, int cy, int radius) {
     glEnd();
 }
 
-// Draw filled circle
+// Draw filled circle (triangle fan fill; Midpoint Circle is only used for outlines)
 void drawFilledCircle(float cx, float cy, float radius, int segments) {
     glBegin(GL_TRIANGLE_FAN);
     glVertex2f(cx, cy);  // Center point
@@ -264,7 +264,7 @@ void drawSmartPanel() {
     glColor3f(0.25f + 0.75f * pulse, 0.2f, 0.4f);
     drawFilledCircle(panelX + 18, panelY + panelH - 18, 4, 12);
     
-    // Touch target / power button with SCALING transform
+    // Contributor: Soroar – Touch target / power button with SCALING transform
     float touchScale = 1.0f + 0.18f * sin(smartPanelGlow * 1.2f);
     glPushMatrix();
     glTranslatef(panelX + panelW - 35, panelY + 22, 0);
@@ -311,7 +311,8 @@ void drawRoom() {
     drawRect(0, 95, 800, 8);
 }
 
-// Draw the hanging lamp (with swing animation)
+// Contributor: Zisan – Lamp cord via Bresenham; lamp swing uses rotation transform
+// hanging lamp
 void drawLamp() {
     glPushMatrix();
     
@@ -537,6 +538,7 @@ void drawPrinter() {
     drawFilledCircle(650, 255, 4, 12);
 }
 
+// Contributor: Soroar – Desk books use DDA line accents and precise scaling
 // Draw books stacked on desk
 void drawBooks() {
     // Book 1 (pink/magenta)
@@ -640,6 +642,19 @@ void drawBookshelf() {
     drawLineBresenham(710, 370, 725, 380);
 }
 
+// Helper to draw a single animated coffee-steam curl using a line strip
+void drawSteamCurl(float baseX, float baseY, float height, float phase, float sway) {
+    glBegin(GL_LINE_STRIP);
+    for (int i = 0; i <= 24; ++i) {
+        float t = i / 24.0f;
+        float y = baseY + t * height;
+        float taper = 1.0f - t * 0.35f; // fade lateral motion near the top
+        float x = baseX + sin(phase + t * 3.14159f * 1.2f) * sway * taper;
+        glVertex2f(x, y);
+    }
+    glEnd();
+}
+
 // Draw coffee cup on desk
 void drawCoffeeCup() {
     // Cup body
@@ -659,18 +674,16 @@ void drawCoffeeCup() {
     glColor3f(0.5f, 0.35f, 0.2f);
     drawRect(102, 205, 27, 18);
     
-    // Cup rim using Midpoint Circle
-    glColor3f(0.35f, 0.2f, 0.1f);
-    glPointSize(2);
-    drawCircleMidpoint(115, 239, 17);
-    
-    // Steam (animated with shear-like wave) using DDA
-    glColor3f(0.7f, 0.7f, 0.7f);
-    glPointSize(1);
-    float offset = sin(clockSecond * 0.1f) * 3;
-    drawLineDDA(108 + offset, 245, 106, 260);
-    drawLineDDA(115 + offset, 245, 115, 265);
-    drawLineDDA(122 + offset, 245, 124, 260);
+    // Steam wisps (line strips for smoother curls)
+    glColor3f(0.85f, 0.85f, 0.9f);
+    float steamPhase = clockSecond * 0.05f;
+    glLineWidth(2.0f);
+    glEnable(GL_LINE_SMOOTH);
+    drawSteamCurl(108.0f, 245.0f, 22.0f, steamPhase, 3.5f);
+    drawSteamCurl(115.0f, 245.0f, 26.0f, steamPhase + 0.6f, 4.0f);
+    drawSteamCurl(122.0f, 245.0f, 22.0f, steamPhase + 1.1f, 3.2f);
+    glDisable(GL_LINE_SMOOTH);
+    glLineWidth(1.0f);
 }
 
 // Draw a minimal desk organizer (replaces plant)
@@ -697,6 +710,7 @@ void drawDeskOrganizer() {
 }
 
 
+// Contributor: Farhan – Clock & pendulum highlight Midpoint Circle usage + rotation
 // Draw wall clock with animated hands
 void drawClock() {
     // Clock shadow
@@ -798,6 +812,7 @@ void drawClock() {
     drawFilledCircle(pendX, pendY - 5, 5, 15);
 }
 
+// Contributor: Zisan – Ceiling fan blades via GL_QUADS + translate/rotate animation
 // Draw ceiling fan (with rotation animation)
 void drawCeilingFan() {
     // Fan mount
@@ -930,10 +945,10 @@ void update(int value) {
     }
 
     glutPostRedisplay();
-    glutTimerFunc(8, update, 0);  // ~120fps for smoother animation
+    glutTimerFunc(8, update, 0);  
 }
 
-// ==================== INITIALIZATION ====================
+
 
 void init() {
     glClearColor(0.15f, 0.12f, 0.1f, 1.0f);
@@ -951,27 +966,7 @@ void init() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
-// ==================== KEYBOARD INPUT ====================
 
-void keyboard(unsigned char key, int x, int y) {
-    switch (key) {
-        case 27:  // ESC
-            exit(0);
-            break;
-        case 'r':
-        case 'R':  // Reset
-            lampAngle = 0;
-            lampDirection = 1;
-            fanAngle = 0;
-            clockSecond = 0;
-            clockMinute = 0;
-            break;
-        case 'f':
-        case 'F':  // Toggle fan speed
-            fanAngle += 10;
-            break;
-    }
-}
 
 // ==================== MAIN FUNCTION ====================
 
@@ -985,42 +980,10 @@ int main(int argc, char** argv) {
     init();
     
     glutDisplayFunc(display);
-    glutKeyboardFunc(keyboard);
     glutTimerFunc(0, update, 0);
-    
-    printf("\n=============================================\n");
+  
     printf("   MODERN SMART HOME OFFICE\n");
-    printf("   OpenGL Computer Graphics Project\n");
-    printf("=============================================\n");
-    printf("\nGraphics Features:\n");
-    printf("  - DDA & Bresenham Line Algorithms\n");
-    printf("  - Midpoint Circle Algorithm\n");
-    printf("  - 2D Transformations (Translate, Rotate, Scale)\n");
-    printf("  - Color Gradients & Blending\n");
-    printf("  - HSV Color Space Animation\n");
-    printf("\nSmart Home Elements:\n");
-    printf("  - RGB LED Strip (rainbow cycling)\n");
-    printf("  - Animated Aquarium with fish & bubbles\n");
-    printf("  - Smart Control Panel with visualizer\n");
-    printf("  - Holographic Desk Display\n");
-    printf("  - Neon Wall Art\n");
-    printf("  - Night Sky Window with stars & moon\n");
-    printf("\nAnimated Objects:\n");
-    printf("  - Smooth pendulum clock\n");
-    printf("  - Pulsing lamp with light rays\n");
-    printf("  - Rotating ceiling fan\n");
-    printf("  - Swimming fish\n");
-    printf("  - Rising bubbles\n");
-    printf("  - Floating dust particles\n");
-    printf("  - Music visualizer bars\n");
-    printf("  - Animated curtains\n");
-    printf("\nControls:\n");
-    printf("  ESC - Exit\n");
-    printf("  R   - Reset animations\n");
-    printf("  F   - Speed up fan\n");
-    printf("  N   - Toggle Night Mode\n");
-    printf("=============================================\n\n");
-    
+   
     glutMainLoop();
     
     return 0;
