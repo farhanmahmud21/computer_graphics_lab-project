@@ -32,6 +32,10 @@ float screenWave = 0;          // Monitor screen animation
 float pendulumAngle = 0;       // Clock pendulum
 float pendulumDir = 1;         // Pendulum direction
 
+// Smart home & modern effects
+float smartPanelGlow = 0;      // Smart panel indicator
+float musicBar[5] = {0};       // Music visualizer bars
+
 // Constants
 const float PI = 3.14159265f;
 
@@ -135,8 +139,9 @@ void drawCircleMidpoint(int cx, int cy, int radius) {
 
 // Draw filled circle
 void drawFilledCircle(float cx, float cy, float radius, int segments) {
-    glBegin(GL_POLYGON);
-    for (int i = 0; i < segments; i++) {
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(cx, cy);  // Center point
+    for (int i = 0; i <= segments; i++) {
         float angle = 2.0f * PI * i / segments;
         float x = cx + radius * cos(angle);
         float y = cy + radius * sin(angle);
@@ -147,7 +152,7 @@ void drawFilledCircle(float cx, float cy, float radius, int segments) {
 
 // Draw filled rectangle helper
 void drawRect(float x, float y, float w, float h) {
-    glBegin(GL_POLYGON);
+    glBegin(GL_QUADS);
         glVertex2f(x, y);
         glVertex2f(x + w, y);
         glVertex2f(x + w, y + h);
@@ -155,26 +160,155 @@ void drawRect(float x, float y, float w, float h) {
     glEnd();
 }
 
+// HSV to RGB conversion for rainbow effects
+void hsvToRgb(float h, float s, float v, float &r, float &g, float &b) {
+    int i = (int)(h * 6);
+    float f = h * 6 - i;
+    float p = v * (1 - s);
+    float q = v * (1 - f * s);
+    float t = v * (1 - (1 - f) * s);
+    switch (i % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+    }
+}
+
+// Draw gradient rectangle
+void drawGradientRect(float x, float y, float w, float h, 
+                      float r1, float g1, float b1,
+                      float r2, float g2, float b2) {
+    glBegin(GL_QUADS);
+        glColor3f(r1, g1, b1);
+        glVertex2f(x, y);
+        glVertex2f(x + w, y);
+        glColor3f(r2, g2, b2);
+        glVertex2f(x + w, y + h);
+        glVertex2f(x, y + h);
+    glEnd();
+}
+
 // ==================== ROOM ELEMENTS ====================
+
+// Draw smart home control panel (GL_QUADS for panels + Midpoint circles for LEDs)
+void drawSmartPanel() {
+    const float panelX = 55.0f;
+    const float panelY = 300.0f;
+    const float panelW = 95.0f;
+    const float panelH = 130.0f;
+    
+    // Panel frame (uses drawRect helper built on GL_QUADS)
+    glColor3f(0.18f, 0.18f, 0.2f);
+    drawRect(panelX - 6, panelY - 6, panelW + 12, panelH + 12);
+    
+    // Panel background
+    glColor3f(0.1f, 0.1f, 0.14f);
+    drawRect(panelX, panelY, panelW, panelH);
+    
+    // Animated glass gradient
+    float pulse = 0.5f + 0.5f * sin(smartPanelGlow);
+    float wave = sin(smartPanelGlow * 0.5f);
+    glBegin(GL_QUADS);
+        glColor3f(0.08f + 0.04f * wave, 0.12f + 0.08f * pulse, 0.28f + 0.12f * pulse);
+        glVertex2f(panelX + 5, panelY + 5);
+        glVertex2f(panelX + panelW - 5, panelY + 5);
+        glColor3f(0.18f + 0.12f * pulse, 0.2f + 0.1f * wave, 0.4f + 0.12f * pulse);
+        glVertex2f(panelX + panelW - 5, panelY + panelH - 5);
+        glVertex2f(panelX + 5, panelY + panelH - 5);
+    glEnd();
+    
+    // Music visualizer bars (HSV -> RGB for rainbow effect)
+    float barBase = panelY + 12;
+    for (int i = 0; i < 5; i++) {
+        float h = 12 + musicBar[i] * (panelH - 50);
+        float hue = 0.02f + i * 0.18f;
+        float r, g, b;
+        hsvToRgb(hue, 0.95f, 1.0f, r, g, b);
+        glColor3f(r, g, b);
+        drawRect(panelX + 8 + i * 16, barBase, 10, h);
+    }
+    
+    // Temperature widget (stacked rectangles)
+    glColor3f(1.0f, 0.55f, 0.15f);
+    drawRect(panelX + 10, panelY + panelH - 55, 45, 20);
+    glColor3f(0.25f, 0.1f, 0.05f);
+    drawRect(panelX + 12, panelY + panelH - 53, 41, 16);
+    glColor3f(1.0f, 0.85f, 0.4f);
+    drawRect(panelX + 15, panelY + panelH - 49, 18, 8);
+    drawRect(panelX + 37, panelY + panelH - 49, 8, 8);
+    
+    // WiFi icon kept well inside the frame
+    float wifiCx = panelX + panelW - 20;
+    float wifiCy = panelY + panelH - 20;
+    for (int i = 0; i < 3; i++) {
+        float radius = 4 + i * 4;
+        float waveDelay = sin(smartPanelGlow * 3 - i * 0.6f);
+        float brightness = 0.6f + 0.4f * waveDelay;
+        glColor3f(0.2f * brightness, 0.95f * brightness, 0.5f * brightness);
+        glLineWidth(2);
+        glBegin(GL_LINE_STRIP);
+        for (int a = 45; a <= 135; a += 10) {
+            float ang = a * PI / 180;
+            glVertex2f(wifiCx + radius * cos(ang), wifiCy + radius * sin(ang));
+        }
+        glEnd();
+    }
+    glLineWidth(1);
+    glColor3f(0.3f, 1.0f, 0.6f);
+    drawFilledCircle(wifiCx, wifiCy - 4, 2, 10);
+    
+    // Status LED
+    glColor3f(0.25f + 0.75f * pulse, 0.2f, 0.4f);
+    drawFilledCircle(panelX + 18, panelY + panelH - 18, 4, 12);
+    
+    // Touch target / power button with SCALING transform
+    float touchScale = 1.0f + 0.18f * sin(smartPanelGlow * 1.2f);
+    glPushMatrix();
+    glTranslatef(panelX + panelW - 35, panelY + 22, 0);
+    glScalef(touchScale, touchScale, 1.0f);
+    glColor3f(0.2f * pulse, 0.45f * pulse, 0.85f * pulse);
+    drawFilledCircle(0, 0, 8, 18);
+    glColor3f(0.4f + 0.2f * pulse, 0.75f + 0.2f * pulse, 1.0f);
+    drawFilledCircle(0, 0, 4, 12);
+    glPopMatrix();
+}
 
 // Draw the room walls and floor
 void drawRoom() {
-    // Back wall (warm orange/peach color like the image)
-    glColor3f(0.9f, 0.7f, 0.5f);
-    drawRect(0, 100, 800, 400);
+    // Back wall with subtle gradient
+    glBegin(GL_QUADS);
+        glColor3f(0.85f, 0.65f, 0.45f);
+        glVertex2f(0, 100);
+        glVertex2f(800, 100);
+        glColor3f(0.95f, 0.78f, 0.58f);
+        glVertex2f(800, 500);
+        glVertex2f(0, 500);
+    glEnd();
     
-    // Floor (light brown/wood color)
-    glColor3f(0.76f, 0.60f, 0.42f);
-    drawRect(0, 0, 800, 100);
+    // Floor (reflective wood with gradient)
+    glBegin(GL_QUADS);
+        glColor3f(0.55f, 0.40f, 0.28f);
+        glVertex2f(0, 0);
+        glVertex2f(800, 0);
+        glColor3f(0.72f, 0.56f, 0.40f);
+        glVertex2f(800, 100);
+        glVertex2f(0, 100);
+    glEnd();
     
-    // Floor line detail using DDA
-    glColor3f(0.65f, 0.50f, 0.35f);
-    glPointSize(2);
-    drawLineDDA(0, 100, 800, 100);
+    // Floor wood grain lines
+    glColor3f(0.5f, 0.38f, 0.25f);
+    for (int i = 0; i < 8; i++) {
+        drawLineDDA(0, 12 + i * 12, 800, 10 + i * 12);
+    }
     
     // Baseboard
-    glColor3f(0.85f, 0.85f, 0.85f);
-    drawRect(0, 95, 800, 10);
+    glColor3f(0.7f, 0.7f, 0.7f);
+    drawRect(0, 93, 800, 2);
+    glColor3f(0.92f, 0.92f, 0.92f);
+    drawRect(0, 95, 800, 8);
 }
 
 // Draw the hanging lamp (with swing animation)
@@ -193,7 +327,7 @@ void drawLamp() {
     
     // Lamp shade (red dome)
     glColor3f(0.85f, 0.2f, 0.15f);
-    glBegin(GL_POLYGON);
+    glBegin(GL_QUADS);
         glVertex2f(360, 430);
         glVertex2f(440, 430);
         glVertex2f(420, 400);
@@ -201,7 +335,8 @@ void drawLamp() {
     glEnd();
     
     // Lamp top curve
-    glBegin(GL_POLYGON);
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(400, 430);  // Center
     for (int i = 0; i <= 180; i += 10) {
         float angle = i * PI / 180;
         glVertex2f(400 + 40 * cos(angle), 430 + 15 * sin(angle));
@@ -368,7 +503,8 @@ void drawChair() {
     drawRect(365, 110, 70, 90);
     
     // Chair back curve (rounded top)
-    glBegin(GL_POLYGON);
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(400, 200);  // Center
     for (int i = 0; i <= 180; i += 10) {
         float angle = i * PI / 180;
         glVertex2f(400 + 35 * cos(angle), 200 + 15 * sin(angle));
@@ -508,7 +644,7 @@ void drawBookshelf() {
 void drawCoffeeCup() {
     // Cup body
     glColor3f(0.85f, 0.85f, 0.8f);
-    glBegin(GL_POLYGON);
+    glBegin(GL_QUADS);
         glVertex2f(100, 195);
         glVertex2f(130, 195);
         glVertex2f(127, 235);
@@ -536,6 +672,30 @@ void drawCoffeeCup() {
     drawLineDDA(115 + offset, 245, 115, 265);
     drawLineDDA(122 + offset, 245, 124, 260);
 }
+
+// Draw a minimal desk organizer (replaces plant)
+void drawDeskOrganizer() {
+    // Base pad
+    glColor3f(0.35f, 0.2f, 0.1f);
+    drawRect(165, 195, 45, 6);
+    glColor3f(0.8f, 0.75f, 0.65f);
+    drawRect(168, 201, 39, 10);
+
+    // Pen holder
+    glColor3f(0.25f, 0.25f, 0.3f);
+    drawRect(172, 211, 20, 18);
+    glColor3f(0.18f, 0.18f, 0.22f);
+    drawRect(174, 213, 16, 14);
+
+    // Pens using Bresenham (diagonal) + DDA vertical
+    glColor3f(0.8f, 0.15f, 0.15f);
+    drawLineBresenham(178, 227, 180, 250);
+    glColor3f(0.1f, 0.6f, 0.8f);
+    drawLineBresenham(186, 227, 188, 252);
+    glColor3f(0.95f, 0.85f, 0.2f);
+    drawLineDDA(182, 227, 182, 247);
+}
+
 
 // Draw wall clock with animated hands
 void drawClock() {
@@ -590,7 +750,7 @@ void drawClock() {
     // Hour hand (thick, black)
     glColor3f(0.1f, 0.1f, 0.1f);
     float hourAngle = clockMinute * PI / 180;
-    glBegin(GL_POLYGON);
+    glBegin(GL_QUADS);
         glVertex2f(730 - 2 * cos(hourAngle), 420 + 2 * sin(hourAngle));
         glVertex2f(730 + 2 * cos(hourAngle), 420 - 2 * sin(hourAngle));
         glVertex2f(730 + 14 * sin(hourAngle) + 1 * cos(hourAngle), 420 + 14 * cos(hourAngle) - 1 * sin(hourAngle));
@@ -600,7 +760,7 @@ void drawClock() {
     // Minute hand (thinner)
     glColor3f(0.15f, 0.15f, 0.15f);
     float minAngle = clockSecond * 0.5f * PI / 180;
-    glBegin(GL_POLYGON);
+    glBegin(GL_TRIANGLES);
         glVertex2f(730 - 1.5f * cos(minAngle), 420 + 1.5f * sin(minAngle));
         glVertex2f(730 + 1.5f * cos(minAngle), 420 - 1.5f * sin(minAngle));
         glVertex2f(730 + 20 * sin(minAngle), 420 + 20 * cos(minAngle));
@@ -659,7 +819,7 @@ void drawCeilingFan() {
     for (int i = 0; i < 4; i++) {
         glPushMatrix();
         glRotatef(i * 90, 0, 0, 1);
-        glBegin(GL_POLYGON);
+        glBegin(GL_QUADS);
             glVertex2f(-5, 0);
             glVertex2f(5, 0);
             glVertex2f(8, 50);
@@ -690,19 +850,20 @@ void drawParticles() {
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     
-    // Draw all room elements
+    // Draw all room elements (back to front for proper layering)
     drawRoom();
-    drawParticles();  // Floating dust in light
+    drawParticles();      // Floating dust in light
     drawCeilingFan();
     drawLamp();
-    drawPicture();
     drawBookshelf();
     drawClock();
+    drawSmartPanel();     // Smart home panel
     drawDesk();
     drawComputer();
     drawKeyboard();
     drawBooks();
     drawPrinter();
+    drawDeskOrganizer();
     drawCoffeeCup();
     drawChair();
     
@@ -762,6 +923,12 @@ void update(int value) {
         if (particleY[i] > 400) particleY[i] = 120;
     }
     
+    // Smart panel effects
+    smartPanelGlow += deltaTime * 4.0f;
+    for (int i = 0; i < 5; i++) {
+        musicBar[i] = 0.3f + 0.7f * fabs(sin(glowPhase * 3 + i * 1.2f));
+    }
+
     glutPostRedisplay();
     glutTimerFunc(8, update, 0);  // ~120fps for smoother animation
 }
@@ -769,7 +936,7 @@ void update(int value) {
 // ==================== INITIALIZATION ====================
 
 void init() {
-    glClearColor(0.9f, 0.7f, 0.5f, 1.0f);
+    glClearColor(0.15f, 0.12f, 0.1f, 1.0f);
     
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -780,6 +947,8 @@ void init() {
     
     glEnable(GL_POINT_SMOOTH);
     glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 // ==================== KEYBOARD INPUT ====================
@@ -820,29 +989,36 @@ int main(int argc, char** argv) {
     glutTimerFunc(0, update, 0);
     
     printf("\n=============================================\n");
-    printf("   INTERIOR DESIGN - Home Office Room\n");
+    printf("   MODERN SMART HOME OFFICE\n");
     printf("   OpenGL Computer Graphics Project\n");
     printf("=============================================\n");
-    printf("\nFeatures Implemented:\n");
-    printf("1. Graphics Primitives: Points, Lines, Polygons, Circles\n");
-    printf("2. DDA Line Algorithm: Shelf, lamp cord, clock hands\n");
-    printf("3. Bresenham Line Algorithm: Chair legs, brackets\n");
-    printf("4. Midpoint Circle Algorithm: Wheels, clock, buttons\n");
-    printf("5. Translation: Lamp position\n");
-    printf("6. Rotation: Lamp swing, Fan blades, Clock hands\n");
-    printf("7. Scaling: Books at different sizes\n");
-    printf("8. Character Illustration: Seated person and walking passer-by\n");
+    printf("\nGraphics Features:\n");
+    printf("  - DDA & Bresenham Line Algorithms\n");
+    printf("  - Midpoint Circle Algorithm\n");
+    printf("  - 2D Transformations (Translate, Rotate, Scale)\n");
+    printf("  - Color Gradients & Blending\n");
+    printf("  - HSV Color Space Animation\n");
+    printf("\nSmart Home Elements:\n");
+    printf("  - RGB LED Strip (rainbow cycling)\n");
+    printf("  - Animated Aquarium with fish & bubbles\n");
+    printf("  - Smart Control Panel with visualizer\n");
+    printf("  - Holographic Desk Display\n");
+    printf("  - Neon Wall Art\n");
+    printf("  - Night Sky Window with stars & moon\n");
     printf("\nAnimated Objects:\n");
-    printf("  - Swinging ceiling lamp\n");
+    printf("  - Smooth pendulum clock\n");
+    printf("  - Pulsing lamp with light rays\n");
     printf("  - Rotating ceiling fan\n");
-    printf("  - Moving clock hands\n");
-    printf("  - Reactive computer screen\n");
-    printf("  - Steam from coffee cup\n");
-    printf("  - Walking character across the desk\n");
+    printf("  - Swimming fish\n");
+    printf("  - Rising bubbles\n");
+    printf("  - Floating dust particles\n");
+    printf("  - Music visualizer bars\n");
+    printf("  - Animated curtains\n");
     printf("\nControls:\n");
     printf("  ESC - Exit\n");
     printf("  R   - Reset animations\n");
     printf("  F   - Speed up fan\n");
+    printf("  N   - Toggle Night Mode\n");
     printf("=============================================\n\n");
     
     glutMainLoop();

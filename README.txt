@@ -1,146 +1,71 @@
 ========================================
-   VILLAGE SCENERY - OpenGL Project
-   Computer Graphics Assignment
+  INTERIOR DESIGN - MODERN HOME OFFICE
+  Computer Graphics Lab Project (OpenGL)
 ========================================
 
-STUDENT PROJECT INFORMATION:
-----------------------------
-Project Title: Village Scenery with Moving Objects
-Project Number: 1 (from project list)
+PROJECT OVERVIEW
+----------------
+This project renders a stylized smart home office using modern OpenGL 2D primitives.
+The scene highlights classic computer graphics algorithms (DDA, Bresenham, Midpoint
+Circle) alongside delta-time animation for a smooth 120 FPS experience. Major props
+include a wooden desk, dual-display computer, pendulum clock, ceiling fan, RGB lamp,
+smart control panel, bookshelf, and decorative accessories.
 
+HOW TO BUILD
+------------
+1. Install MinGW-w64 with freeglut (the repo assumes C:\msys64\mingw64).
+2. From the `g:\CG` folder run:
+   `g++ interior_design.cpp -lfreeglut -lopengl32 -lglu32 -o interior_design.exe`
+3. Launch the executable: `interior_design.exe`
 
-FEATURES IMPLEMENTED:
+CONTROLS
+--------
+- `Esc` : Exit
+- `R`   : Reset all animated angles to their starting pose
+- `F`   : Give the ceiling fan a manual nudge (adds +10°)
+
+MAIN FEATURES
+-------------
+- Delta-time animation timer (~8 ms) for smooth pendulum, fan, clock hands, and UI pulses.
+- Layered gradients for walls/floor to mimic indirect lighting.
+- Smart panel with HSV-driven music visualizer, animated Wi-Fi indicator, and status LEDs.
+- Realistic cup steam, dynamic monitor content, swinging desk lamp, bookshelf accessories.
+- Reusable helpers: DDA line, Bresenham line, Midpoint circle, filled circle, gradient quad.
+- Explicit 2D transformations: lamp swing (rotation), ceiling fan hub translate+rotate, smart-panel touch button scaling pulse.
+
+ALGORITHMS BY OBJECT
 --------------------
+| Object / Effect            | Algorithm(s) Used                                    |
+|----------------------------|------------------------------------------------------|
+| Lamp cord & bookshelf supports | Bresenham line drawing                            |
+| Book spines, desk dividers      | DDA line drawing                                 |
+| Clock bezel, pendulum weights, LEDs | Midpoint circle + triangle fan fills        |
+| Coffee cup steam & dust          | Filled circles (triangle fan) with alpha       |
+| Smart control panel              | GL_QUADS (drawRect) + HSV→RGB music bars       |
+| Ceiling fan blades               | GL_QUADS + rotation transform                  |
+| Computer monitor shader          | Gradient quads + sine-based wave animation     |
+| Smart panel touch button        | Translation + Scaling (glTranslatef/glScalef)                      |
 
-1. BASIC GRAPHICS PRIMITIVES:
-   - Points: Used in DDA and Midpoint algorithms
-   - Lines: Fence, road markings, bird wings
-   - Polygons: Houses, trees, mountains, river, sky
-   - Circles: Sun, clouds, windmill hub
-
-2. GRAPHICS ALGORITHMS:
-   a) DDA (Digital Differential Analyzer) Line Algorithm:
-      - Location: drawLineDDA() function (Line 33-55)
-      - Used for: Sun rays, river waves, road markings, bird shapes
-      
-   b) Midpoint Circle Algorithm:
-      - Location: drawCircleMidpoint() function (Line 62-89)
-      - Used for: Sun outline, mountain snow caps
-
-3. 2D TRANSFORMATIONS:
-   a) Translation:
-      - Moving clouds (cloudX variable)
-      - Flying birds (birdX variable)
-      - Moving boat (boatX variable)
-      - Rising sun (sunY variable)
-      
-   b) Rotation:
-      - Windmill blades using glRotatef()
-      - Located in drawWindmill() function
-      
-   c) Scaling:
-      - Houses drawn at different sizes (scale parameter)
-      - Trees drawn at different sizes (scale parameter)
-      - See drawHouse() and drawTree() functions
-
-4. ANIMATION:
-   - Sun rising animation
-   - Clouds moving from left to right
-   - Birds flying from right to left
-   - Boat moving on river
-   - Windmill rotating continuously
-
-
-HOW TO BUILD AND RUN:
---------------------
-
-METHOD 1: Using Visual Studio Code with MinGW
-----------------------------------------------
-1. Open Command Prompt in project folder
-2. Run: g++ village_scenery.cpp -o village_scenery.exe -lfreeglut -lopengl32 -lglu32
-3. Run: village_scenery.exe
-
-METHOD 2: Using Code::Blocks
-----------------------------
-1. Create new Console Application (C++)
-2. Copy village_scenery.cpp code into main.cpp
-3. Go to Project > Build Options > Linker Settings
-4. Add these libraries:
-   - freeglut
-   - opengl32
-   - glu32
-5. Build and Run (F9)
-
-METHOD 3: Using Visual Studio
------------------------------
-1. Create new Empty Project (C++)
-2. Add village_scenery.cpp to Source Files
-3. Install freeglut using NuGet Package Manager
-4. Or manually add libraries:
-   - Project Properties > Linker > Input > Additional Dependencies
-   - Add: freeglut.lib;opengl32.lib;glu32.lib
-5. Build and Run (Ctrl+F5)
-
-
-INSTALLING FREEGLUT (if not installed):
---------------------------------------
-1. Download freeglut from: https://www.transmissionzero.co.uk/software/freeglut-devel/
-2. Extract the zip file
-3. Copy files:
-   - freeglut.dll to C:\Windows\System32 (or project folder)
-   - freeglut.lib to your compiler's lib folder
-   - GL folder (headers) to your compiler's include folder
-
-
-CONTROLS:
----------
-- ESC key: Exit the program
-- R key: Reset all animations
-
-
-SCENE DESCRIPTION:
+ANIMATION SUMMARY
 -----------------
-The village scenery includes:
-- Sky with moving clouds
-- Mountains with snow caps in background
-- Rising sun with rays
-- Three houses of different sizes
-- Trees around the houses
-- A windmill with rotating blades
-- A river with a moving boat
-- A road with lane markings
-- Flying birds
-- Fence near houses
+- `update()` computes deltaTime and advances lamp swing, fan rotation, clock hands,
+  pendulum swing, dust particles, monitor waves, smart-panel pulses, and the desk
+  plant's translate/scale/rotate cycle.
+- Animations stay stable regardless of machine speed because everything is tied to time
+  differences reported by `glutGet(GLUT_ELAPSED_TIME)`.
 
+FILE LIST
+---------
+- `interior_design.cpp` : Full source for the home office scene (≈1K lines).
+- `build.bat`           : Convenience script (same command as above).
 
-CODE STRUCTURE:
---------------
-1. Global Variables (Line 18-26): Animation control variables
-2. DDA Algorithm (Line 33-55): Line drawing algorithm
-3. Midpoint Circle (Line 62-89): Circle drawing algorithm
-4. Drawing Functions (Line 97-380): All scene elements
-5. Display Function (Line 384-430): Main rendering
-6. Animation Update (Line 434-468): Animation logic
-7. Init & Main (Line 472-530): Setup and main loop
-
-
-ALGORITHMS EXPLAINED:
---------------------
-
-DDA LINE ALGORITHM:
-- Calculates points between two coordinates
-- Uses floating point increments
-- Steps = max(|dx|, |dy|)
-- Simple but uses floating point math
-
-MIDPOINT CIRCLE ALGORITHM:
-- Uses integer arithmetic only
-- Decision parameter: d = 1 - radius
-- Exploits 8-way symmetry
-- More efficient than direct calculation
-
+CREDITS / NOTES
+---------------
+- Built with FreeGLUT and classic fixed-function OpenGL for teaching purposes.
+- All scene geometry is authored manually with helper algorithms—no external assets.
+- Feel free to remix props or swap color palettes to create your own themed workspace.
 
 ========================================
-   Thank you!
+  Enjoy exploring the smart workspace!
 ========================================
 
