@@ -1,0 +1,740 @@
+/*
+=================================================================
+    INTERIOR DESIGN - Home Office Room
+    OpenGL Computer Graphics Project
+    
+    Features:
+    - Basic Graphics Primitives (points, lines, polygons, circles)
+    - Graphics Algorithms (DDA Line, Bresenham Line, Midpoint Circle)
+    - 2D Transformations (Translation, Rotation, Scaling, Shear)
+    - Animations (Swinging Lamp, Clock hands, Fan rotation)
+=================================================================
+*/
+
+#include <GL/glut.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+
+// ==================== GLOBAL VARIABLES ====================
+// Animation variables
+float lampAngle = 0;           // Lamp swinging angle
+float lampDirection = 1;       // Lamp swing direction
+float fanAngle = 0;            // Ceiling fan rotation
+float clockSecond = 0;         // Clock second hand angle
+float clockMinute = 0;         // Clock minute hand angle
+bool computerOn = true;        // Computer screen state
+int blinkCounter = 0;          // For screen blinking effect
+
+// Constants
+const float PI = 3.14159265f;
+
+// ==================== GRAPHICS ALGORITHMS ====================
+
+/*
+    DDA Line Drawing Algorithm
+    - Digital Differential Analyzer
+    - Uses floating point arithmetic
+*/
+void drawLineDDA(float x1, float y1, float x2, float y2) {
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    float steps;
+    
+    if (abs(dx) > abs(dy)) {
+        steps = abs(dx);
+    } else {
+        steps = abs(dy);
+    }
+    
+    if (steps == 0) steps = 1;
+    
+    float xIncrement = dx / steps;
+    float yIncrement = dy / steps;
+    
+    float x = x1;
+    float y = y1;
+    
+    glBegin(GL_POINTS);
+    for (int i = 0; i <= steps; i++) {
+        glVertex2f(x, y);
+        x += xIncrement;
+        y += yIncrement;
+    }
+    glEnd();
+}
+
+/*
+    Bresenham Line Drawing Algorithm
+    - Uses only integer arithmetic
+    - More efficient than DDA
+*/
+void drawLineBresenham(int x1, int y1, int x2, int y2) {
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1;
+    int err = dx - dy;
+    
+    glBegin(GL_POINTS);
+    while (true) {
+        glVertex2i(x1, y1);
+        
+        if (x1 == x2 && y1 == y2) break;
+        
+        int e2 = 2 * err;
+        if (e2 > -dy) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+    glEnd();
+}
+
+/*
+    Midpoint Circle Drawing Algorithm
+    - Uses integer arithmetic
+    - Exploits 8-way symmetry
+*/
+void drawCircleMidpoint(int cx, int cy, int radius) {
+    int x = 0;
+    int y = radius;
+    int d = 1 - radius;
+    
+    glBegin(GL_POINTS);
+    while (x <= y) {
+        glVertex2i(cx + x, cy + y);
+        glVertex2i(cx - x, cy + y);
+        glVertex2i(cx + x, cy - y);
+        glVertex2i(cx - x, cy - y);
+        glVertex2i(cx + y, cy + x);
+        glVertex2i(cx - y, cy + x);
+        glVertex2i(cx + y, cy - x);
+        glVertex2i(cx - y, cy - x);
+        
+        if (d < 0) {
+            d = d + 2 * x + 3;
+        } else {
+            d = d + 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+    }
+    glEnd();
+}
+
+// Draw filled circle
+void drawFilledCircle(float cx, float cy, float radius, int segments) {
+    glBegin(GL_POLYGON);
+    for (int i = 0; i < segments; i++) {
+        float angle = 2.0f * PI * i / segments;
+        float x = cx + radius * cos(angle);
+        float y = cy + radius * sin(angle);
+        glVertex2f(x, y);
+    }
+    glEnd();
+}
+
+// Draw filled rectangle helper
+void drawRect(float x, float y, float w, float h) {
+    glBegin(GL_POLYGON);
+        glVertex2f(x, y);
+        glVertex2f(x + w, y);
+        glVertex2f(x + w, y + h);
+        glVertex2f(x, y + h);
+    glEnd();
+}
+
+// ==================== ROOM ELEMENTS ====================
+
+// Draw the room walls and floor
+void drawRoom() {
+    // Back wall (warm orange/peach color like the image)
+    glColor3f(0.9f, 0.7f, 0.5f);
+    drawRect(0, 100, 800, 400);
+    
+    // Floor (light brown/wood color)
+    glColor3f(0.76f, 0.60f, 0.42f);
+    drawRect(0, 0, 800, 100);
+    
+    // Floor line detail using DDA
+    glColor3f(0.65f, 0.50f, 0.35f);
+    glPointSize(2);
+    drawLineDDA(0, 100, 800, 100);
+    
+    // Baseboard
+    glColor3f(0.85f, 0.85f, 0.85f);
+    drawRect(0, 95, 800, 10);
+}
+
+// Draw the hanging lamp (with swing animation)
+void drawLamp() {
+    glPushMatrix();
+    
+    // Pivot point at ceiling
+    glTranslatef(400, 480, 0);
+    glRotatef(lampAngle, 0, 0, 1);  // ROTATION transformation
+    glTranslatef(-400, -480, 0);
+    
+    // Lamp cord using Bresenham
+    glColor3f(0.2f, 0.2f, 0.2f);
+    glPointSize(2);
+    drawLineBresenham(400, 500, 400, 430);
+    
+    // Lamp shade (red dome)
+    glColor3f(0.85f, 0.2f, 0.15f);
+    glBegin(GL_POLYGON);
+        glVertex2f(360, 430);
+        glVertex2f(440, 430);
+        glVertex2f(420, 400);
+        glVertex2f(380, 400);
+    glEnd();
+    
+    // Lamp top curve
+    glBegin(GL_POLYGON);
+    for (int i = 0; i <= 180; i += 10) {
+        float angle = i * PI / 180;
+        glVertex2f(400 + 40 * cos(angle), 430 + 15 * sin(angle));
+    }
+    glEnd();
+    
+    // Light bulb (yellow)
+    glColor3f(1.0f, 0.95f, 0.6f);
+    drawFilledCircle(400, 395, 8, 20);
+    
+    glPopMatrix();
+}
+
+// Draw the desk with drawers
+void drawDesk() {
+    // Desk top (gray)
+    glColor3f(0.5f, 0.5f, 0.5f);
+    drawRect(80, 180, 640, 15);
+    
+    // Left drawer unit
+    glColor3f(0.6f, 0.6f, 0.6f);
+    drawRect(80, 50, 120, 130);
+    
+    // Left drawer fronts
+    glColor3f(0.55f, 0.55f, 0.55f);
+    drawRect(85, 120, 110, 35);
+    drawRect(85, 80, 110, 35);
+    drawRect(85, 40, 110, 35);
+    
+    // Drawer handles using DDA lines
+    glColor3f(0.3f, 0.3f, 0.3f);
+    glPointSize(2);
+    drawLineDDA(120, 137, 160, 137);
+    drawLineDDA(120, 97, 160, 97);
+    drawLineDDA(120, 57, 160, 57);
+    
+    // Right drawer unit
+    glColor3f(0.6f, 0.6f, 0.6f);
+    drawRect(600, 50, 120, 130);
+    
+    // Right drawer fronts
+    glColor3f(0.55f, 0.55f, 0.55f);
+    drawRect(605, 120, 110, 35);
+    drawRect(605, 80, 110, 35);
+    drawRect(605, 40, 110, 35);
+    
+    // Drawer handles
+    drawLineDDA(640, 137, 680, 137);
+    drawLineDDA(640, 97, 680, 97);
+    drawLineDDA(640, 57, 160, 57);
+    
+    // Drawer unit wheels using Midpoint Circle
+    glColor3f(0.2f, 0.2f, 0.2f);
+    glPointSize(2);
+    drawCircleMidpoint(100, 45, 8);
+    drawCircleMidpoint(180, 45, 8);
+    drawCircleMidpoint(620, 45, 8);
+    drawCircleMidpoint(700, 45, 8);
+    
+    // Fill wheels
+    glColor3f(0.15f, 0.15f, 0.15f);
+    drawFilledCircle(100, 45, 7, 15);
+    drawFilledCircle(180, 45, 7, 15);
+    drawFilledCircle(620, 45, 7, 15);
+    drawFilledCircle(700, 45, 7, 15);
+}
+
+// Draw the computer monitor
+void drawComputer() {
+    // Monitor stand
+    glColor3f(0.2f, 0.2f, 0.2f);
+    drawRect(270, 195, 60, 10);
+    drawRect(290, 205, 20, 30);
+    
+    // Monitor frame (black)
+    glColor3f(0.15f, 0.15f, 0.15f);
+    drawRect(210, 235, 180, 130);
+    
+    // Monitor screen (teal/cyan with blink effect)
+    if (computerOn) {
+        glColor3f(0.2f, 0.7f, 0.65f);
+    } else {
+        glColor3f(0.1f, 0.3f, 0.3f);
+    }
+    drawRect(220, 245, 160, 110);
+    
+    // Screen reflection line using DDA
+    if (computerOn) {
+        glColor3f(0.3f, 0.8f, 0.75f);
+        glPointSize(1);
+        drawLineDDA(225, 350, 280, 350);
+    }
+}
+
+// Draw the keyboard
+void drawKeyboard() {
+    // Keyboard base
+    glColor3f(0.25f, 0.25f, 0.25f);
+    drawRect(230, 195, 140, 8);
+    
+    // Keyboard keys (small rectangles) using lines
+    glColor3f(0.35f, 0.35f, 0.35f);
+    for (int row = 0; row < 2; row++) {
+        for (int col = 0; col < 12; col++) {
+            drawRect(235 + col * 11, 196 + row * 3, 9, 2);
+        }
+    }
+}
+
+// Draw the office chair
+void drawChair() {
+    // Chair base wheels using Midpoint Circle
+    glColor3f(0.2f, 0.2f, 0.2f);
+    glPointSize(2);
+    drawCircleMidpoint(400, 35, 6);
+    drawCircleMidpoint(370, 45, 6);
+    drawCircleMidpoint(430, 45, 6);
+    
+    // Fill wheels
+    glColor3f(0.15f, 0.15f, 0.15f);
+    drawFilledCircle(400, 35, 5, 12);
+    drawFilledCircle(370, 45, 5, 12);
+    drawFilledCircle(430, 45, 5, 12);
+    
+    // Chair legs using Bresenham
+    glColor3f(0.25f, 0.25f, 0.25f);
+    glPointSize(2);
+    drawLineBresenham(400, 35, 400, 90);
+    drawLineBresenham(400, 45, 370, 45);
+    drawLineBresenham(400, 45, 430, 45);
+    
+    // Chair seat
+    glColor3f(0.15f, 0.15f, 0.15f);
+    drawRect(360, 90, 80, 20);
+    
+    // Chair back
+    glColor3f(0.12f, 0.12f, 0.12f);
+    drawRect(365, 110, 70, 90);
+    
+    // Chair back curve (rounded top)
+    glBegin(GL_POLYGON);
+    for (int i = 0; i <= 180; i += 10) {
+        float angle = i * PI / 180;
+        glVertex2f(400 + 35 * cos(angle), 200 + 15 * sin(angle));
+    }
+    glEnd();
+}
+
+// Draw the printer
+void drawPrinter() {
+    // Printer body
+    glColor3f(0.85f, 0.85f, 0.85f);
+    drawRect(580, 195, 100, 50);
+    
+    // Printer top
+    glColor3f(0.75f, 0.75f, 0.75f);
+    drawRect(580, 245, 100, 15);
+    
+    // Paper tray
+    glColor3f(0.3f, 0.3f, 0.3f);
+    drawRect(590, 200, 80, 8);
+    
+    // Paper output slot
+    glColor3f(0.2f, 0.2f, 0.2f);
+    drawRect(595, 230, 70, 5);
+    
+    // Printer buttons using Midpoint Circle
+    glColor3f(0.2f, 0.6f, 0.2f);
+    drawFilledCircle(665, 255, 4, 12);
+    glColor3f(0.6f, 0.2f, 0.2f);
+    drawFilledCircle(650, 255, 4, 12);
+}
+
+// Draw books stacked on desk
+void drawBooks() {
+    // Book 1 (pink/magenta)
+    glColor3f(0.85f, 0.3f, 0.5f);
+    drawRect(580, 260, 90, 15);
+    
+    // Book 2 (teal)
+    glColor3f(0.2f, 0.6f, 0.6f);
+    drawRect(585, 275, 85, 12);
+    
+    // Book 3 (yellow)
+    glColor3f(0.9f, 0.85f, 0.3f);
+    drawRect(583, 287, 87, 14);
+    
+    // Book spines using DDA
+    glColor3f(0.7f, 0.2f, 0.4f);
+    drawLineDDA(580, 260, 580, 275);
+    glColor3f(0.15f, 0.5f, 0.5f);
+    drawLineDDA(585, 275, 585, 287);
+}
+
+// Draw wall picture/painting
+void drawPicture() {
+    // Frame (brown)
+    glColor3f(0.4f, 0.25f, 0.1f);
+    drawRect(70, 320, 120, 100);
+    
+    // Picture background (sky)
+    glColor3f(0.53f, 0.81f, 0.98f);
+    drawRect(80, 330, 100, 80);
+    
+    // Mountains
+    glColor3f(0.3f, 0.5f, 0.3f);
+    glBegin(GL_TRIANGLES);
+        glVertex2f(80, 360);
+        glVertex2f(130, 400);
+        glVertex2f(180, 360);
+    glEnd();
+    
+    glColor3f(0.25f, 0.45f, 0.25f);
+    glBegin(GL_TRIANGLES);
+        glVertex2f(100, 360);
+        glVertex2f(150, 390);
+        glVertex2f(180, 360);
+    glEnd();
+    
+    // Snow cap
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glBegin(GL_TRIANGLES);
+        glVertex2f(120, 395);
+        glVertex2f(130, 400);
+        glVertex2f(140, 395);
+    glEnd();
+    
+    // Sun in picture
+    glColor3f(1.0f, 0.9f, 0.3f);
+    drawFilledCircle(95, 395, 10, 15);
+    
+    // Ground
+    glColor3f(0.2f, 0.6f, 0.2f);
+    drawRect(80, 330, 100, 30);
+}
+
+// Draw bookshelf on wall
+void drawBookshelf() {
+    // Shelf bracket
+    glColor3f(0.55f, 0.35f, 0.2f);
+    drawRect(550, 380, 180, 8);
+    
+    // Books on shelf (using SCALING - different sizes)
+    // Book 1 (red)
+    glColor3f(0.8f, 0.2f, 0.2f);
+    drawRect(560, 388, 25, 45);
+    
+    // Book 2 (blue)
+    glColor3f(0.2f, 0.3f, 0.7f);
+    drawRect(590, 388, 20, 40);
+    
+    // Book 3 (orange)
+    glColor3f(0.9f, 0.5f, 0.1f);
+    drawRect(615, 388, 22, 50);
+    
+    // Book 4 (green - lying flat)
+    glColor3f(0.3f, 0.7f, 0.3f);
+    drawRect(645, 388, 35, 12);
+    
+    // Book 5 (yellow - on top)
+    glColor3f(0.9f, 0.9f, 0.3f);
+    drawRect(648, 400, 30, 10);
+    
+    // Small decorative item (green box)
+    glColor3f(0.4f, 0.75f, 0.4f);
+    drawRect(700, 388, 25, 35);
+    
+    // Shelf support brackets using Bresenham
+    glColor3f(0.4f, 0.25f, 0.15f);
+    glPointSize(2);
+    drawLineBresenham(560, 380, 560, 370);
+    drawLineBresenham(560, 370, 575, 380);
+    drawLineBresenham(710, 380, 710, 370);
+    drawLineBresenham(710, 370, 725, 380);
+}
+
+// Draw coffee cup on desk
+void drawCoffeeCup() {
+    // Cup body
+    glColor3f(0.85f, 0.85f, 0.8f);
+    glBegin(GL_POLYGON);
+        glVertex2f(100, 195);
+        glVertex2f(130, 195);
+        glVertex2f(127, 235);
+        glVertex2f(103, 235);
+    glEnd();
+    
+    // Cup lid (brown)
+    glColor3f(0.4f, 0.25f, 0.15f);
+    drawRect(98, 235, 35, 8);
+    
+    // Cup sleeve
+    glColor3f(0.5f, 0.35f, 0.2f);
+    drawRect(102, 205, 27, 18);
+    
+    // Cup rim using Midpoint Circle
+    glColor3f(0.35f, 0.2f, 0.1f);
+    glPointSize(2);
+    drawCircleMidpoint(115, 239, 17);
+    
+    // Steam (animated with shear-like wave) using DDA
+    glColor3f(0.7f, 0.7f, 0.7f);
+    glPointSize(1);
+    float offset = sin(clockSecond * 0.1f) * 3;
+    drawLineDDA(108 + offset, 245, 106, 260);
+    drawLineDDA(115 + offset, 245, 115, 265);
+    drawLineDDA(122 + offset, 245, 124, 260);
+}
+
+// Draw wall clock with animated hands
+void drawClock() {
+    // Clock body
+    glColor3f(0.9f, 0.9f, 0.9f);
+    drawFilledCircle(730, 420, 30, 30);
+    
+    // Clock border using Midpoint Circle
+    glColor3f(0.3f, 0.3f, 0.3f);
+    glPointSize(2);
+    drawCircleMidpoint(730, 420, 32);
+    drawCircleMidpoint(730, 420, 30);
+    
+    // Clock hour markers
+    glColor3f(0.2f, 0.2f, 0.2f);
+    for (int i = 0; i < 12; i++) {
+        float angle = i * 30 * PI / 180;
+        float x1 = 730 + 24 * sin(angle);
+        float y1 = 420 + 24 * cos(angle);
+        float x2 = 730 + 28 * sin(angle);
+        float y2 = 420 + 28 * cos(angle);
+        drawLineDDA(x1, y1, x2, y2);
+    }
+    
+    // Hour hand (ROTATION transformation)
+    glColor3f(0.1f, 0.1f, 0.1f);
+    glLineWidth(3);
+    float hourAngle = clockMinute * PI / 180;
+    drawLineDDA(730, 420, 730 + 15 * sin(hourAngle), 420 + 15 * cos(hourAngle));
+    
+    // Minute hand
+    glLineWidth(2);
+    float minAngle = clockSecond * 0.5f * PI / 180;
+    drawLineDDA(730, 420, 730 + 22 * sin(minAngle), 420 + 22 * cos(minAngle));
+    
+    // Second hand (red, animated)
+    glColor3f(0.8f, 0.1f, 0.1f);
+    glLineWidth(1);
+    float secAngle = clockSecond * PI / 180;
+    drawLineDDA(730, 420, 730 + 25 * sin(secAngle), 420 + 25 * cos(secAngle));
+    
+    // Center dot
+    glColor3f(0.2f, 0.2f, 0.2f);
+    drawFilledCircle(730, 420, 3, 10);
+}
+
+// Draw ceiling fan (with rotation animation)
+void drawCeilingFan() {
+    // Fan mount
+    glColor3f(0.4f, 0.4f, 0.4f);
+    drawRect(195, 480, 20, 20);
+    
+    // Fan motor housing
+    glColor3f(0.3f, 0.3f, 0.3f);
+    drawFilledCircle(205, 475, 15, 20);
+    
+    // Fan blades with ROTATION transformation
+    glPushMatrix();
+    glTranslatef(205, 475, 0);
+    glRotatef(fanAngle, 0, 0, 1);
+    
+    glColor3f(0.35f, 0.25f, 0.15f);
+    
+    // 4 blades
+    for (int i = 0; i < 4; i++) {
+        glPushMatrix();
+        glRotatef(i * 90, 0, 0, 1);
+        glBegin(GL_POLYGON);
+            glVertex2f(-5, 0);
+            glVertex2f(5, 0);
+            glVertex2f(8, 50);
+            glVertex2f(-8, 50);
+        glEnd();
+        glPopMatrix();
+    }
+    
+    glPopMatrix();
+    
+    // Center cap
+    glColor3f(0.5f, 0.5f, 0.5f);
+    drawFilledCircle(205, 475, 8, 15);
+}
+
+// ==================== MAIN DISPLAY FUNCTION ====================
+
+void display() {
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    // Draw all room elements
+    drawRoom();
+    drawCeilingFan();
+    drawLamp();
+    drawPicture();
+    drawBookshelf();
+    drawClock();
+    drawDesk();
+    drawComputer();
+    drawKeyboard();
+    drawBooks();
+    drawPrinter();
+    drawCoffeeCup();
+    drawChair();
+    
+    glutSwapBuffers();
+}
+
+// ==================== ANIMATION UPDATE ====================
+
+void update(int value) {
+    static int lastTime = glutGet(GLUT_ELAPSED_TIME);
+    int currentTime = glutGet(GLUT_ELAPSED_TIME);
+    float deltaTime = (currentTime - lastTime) / 1000.0f;
+    lastTime = currentTime;
+    if (deltaTime <= 0 || deltaTime > 0.1f) deltaTime = 0.016f;
+    
+    // Lamp swinging animation (Translation + Rotation)
+    lampAngle += lampDirection * 18.0f * deltaTime;
+    if (lampAngle > 8) {
+        lampAngle = 8;
+        lampDirection = -1;
+    } else if (lampAngle < -8) {
+        lampAngle = -8;
+        lampDirection = 1;
+    }
+    
+    // Ceiling fan rotation
+    fanAngle += 240.0f * deltaTime;
+    if (fanAngle > 360) fanAngle -= 360;
+    
+    // Clock animation - SMOOTH continuous sweep motion like real clock
+    // Second hand: 6 degrees per real second (360 degrees / 60 seconds)
+    clockSecond += 6.0f * deltaTime;
+    if (clockSecond >= 360.0f) clockSecond -= 360.0f;
+    // Minute hand: 0.1 degrees per real second (6 degrees per minute)
+    clockMinute += 0.1f * deltaTime;
+    if (clockMinute >= 360.0f) clockMinute -= 360.0f;
+    
+    // Computer screen blink effect
+    blinkCounter++;
+    if (blinkCounter > 180) {
+        computerOn = !computerOn;
+        if (blinkCounter > 190) blinkCounter = 0;
+    } else {
+        computerOn = true;
+    }
+    
+    glutPostRedisplay();
+    glutTimerFunc(8, update, 0);  // ~120fps for smoother animation
+}
+
+// ==================== INITIALIZATION ====================
+
+void init() {
+    glClearColor(0.9f, 0.7f, 0.5f, 1.0f);
+    
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0, 800, 0, 500);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    
+    glEnable(GL_POINT_SMOOTH);
+    glEnable(GL_LINE_SMOOTH);
+}
+
+// ==================== KEYBOARD INPUT ====================
+
+void keyboard(unsigned char key, int x, int y) {
+    switch (key) {
+        case 27:  // ESC
+            exit(0);
+            break;
+        case 'r':
+        case 'R':  // Reset
+            lampAngle = 0;
+            lampDirection = 1;
+            fanAngle = 0;
+            clockSecond = 0;
+            clockMinute = 0;
+            break;
+        case 'f':
+        case 'F':  // Toggle fan speed
+            fanAngle += 10;
+            break;
+    }
+}
+
+// ==================== MAIN FUNCTION ====================
+
+int main(int argc, char** argv) {
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitWindowSize(800, 500);
+    glutInitWindowPosition(100, 100);
+    glutCreateWindow("Interior Design - Home Office (OpenGL Project)");
+    
+    init();
+    
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
+    glutTimerFunc(0, update, 0);
+    
+    printf("\n=============================================\n");
+    printf("   INTERIOR DESIGN - Home Office Room\n");
+    printf("   OpenGL Computer Graphics Project\n");
+    printf("=============================================\n");
+    printf("\nFeatures Implemented:\n");
+    printf("1. Graphics Primitives: Points, Lines, Polygons, Circles\n");
+    printf("2. DDA Line Algorithm: Shelf, lamp cord, clock hands\n");
+    printf("3. Bresenham Line Algorithm: Chair legs, brackets\n");
+    printf("4. Midpoint Circle Algorithm: Wheels, clock, buttons\n");
+    printf("5. Translation: Lamp position\n");
+    printf("6. Rotation: Lamp swing, Fan blades, Clock hands\n");
+    printf("7. Scaling: Books at different sizes\n");
+    printf("8. Character Illustration: Seated person and walking passer-by\n");
+    printf("\nAnimated Objects:\n");
+    printf("  - Swinging ceiling lamp\n");
+    printf("  - Rotating ceiling fan\n");
+    printf("  - Moving clock hands\n");
+    printf("  - Reactive computer screen\n");
+    printf("  - Steam from coffee cup\n");
+    printf("  - Walking character across the desk\n");
+    printf("\nControls:\n");
+    printf("  ESC - Exit\n");
+    printf("  R   - Reset animations\n");
+    printf("  F   - Speed up fan\n");
+    printf("=============================================\n\n");
+    
+    glutMainLoop();
+    
+    return 0;
+}
+
