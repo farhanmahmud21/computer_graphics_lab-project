@@ -25,6 +25,12 @@ float clockSecond = 0;         // Clock second hand angle
 float clockMinute = 0;         // Clock minute hand angle
 bool computerOn = true;        // Computer screen state
 int blinkCounter = 0;          // For screen blinking effect
+float glowPhase = 0;           // For pulsing glow effects
+float particleY[5] = {0};      // Floating dust particles Y positions
+float particleX[5] = {150, 300, 450, 550, 700}; // Particle X positions
+float screenWave = 0;          // Monitor screen animation
+float pendulumAngle = 0;       // Clock pendulum
+float pendulumDir = 1;         // Pendulum direction
 
 // Constants
 const float PI = 3.14159265f;
@@ -202,9 +208,25 @@ void drawLamp() {
     }
     glEnd();
     
-    // Light bulb (yellow)
-    glColor3f(1.0f, 0.95f, 0.6f);
+    // Light glow effect (pulsing)
+    float glow = 0.6f + 0.4f * sin(glowPhase * 1.5f);
+    glColor3f(1.0f * glow, 0.9f * glow, 0.5f * glow);
+    drawFilledCircle(400, 390, 18, 25);
+    
+    // Light bulb (bright yellow center)
+    glColor3f(1.0f, 0.98f, 0.8f);
     drawFilledCircle(400, 395, 8, 20);
+    
+    // Light rays
+    glColor3f(1.0f * glow * 0.5f, 0.95f * glow * 0.5f, 0.6f * glow * 0.3f);
+    for (int i = 0; i < 8; i++) {
+        float rayAngle = i * 45 * PI / 180 + glowPhase * 0.2f;
+        float x1 = 400 + 12 * cos(rayAngle);
+        float y1 = 390 + 12 * sin(rayAngle);
+        float x2 = 400 + (25 + 5 * sin(glowPhase + i)) * cos(rayAngle);
+        float y2 = 390 + (25 + 5 * sin(glowPhase + i)) * sin(rayAngle);
+        drawLineDDA(x1, y1, x2, y2);
+    }
     
     glPopMatrix();
 }
@@ -270,24 +292,34 @@ void drawComputer() {
     drawRect(270, 195, 60, 10);
     drawRect(290, 205, 20, 30);
     
-    // Monitor frame (black)
-    glColor3f(0.15f, 0.15f, 0.15f);
+    // Monitor frame (black with subtle shadow)
+    glColor3f(0.1f, 0.1f, 0.1f);
+    drawRect(208, 233, 184, 134);
+    glColor3f(0.18f, 0.18f, 0.18f);
     drawRect(210, 235, 180, 130);
     
-    // Monitor screen (teal/cyan with blink effect)
-    if (computerOn) {
-        glColor3f(0.2f, 0.7f, 0.65f);
-    } else {
-        glColor3f(0.1f, 0.3f, 0.3f);
-    }
-    drawRect(220, 245, 160, 110);
+    // Monitor screen with animated gradient
+    float wave = sin(screenWave) * 0.1f;
+    glBegin(GL_QUADS);
+        glColor3f(0.15f + wave, 0.5f + wave, 0.55f);
+        glVertex2f(220, 245);
+        glVertex2f(380, 245);
+        glColor3f(0.25f, 0.75f + wave * 0.5f, 0.7f + wave * 0.3f);
+        glVertex2f(380, 355);
+        glVertex2f(220, 355);
+    glEnd();
     
-    // Screen reflection line using DDA
-    if (computerOn) {
-        glColor3f(0.3f, 0.8f, 0.75f);
-        glPointSize(1);
-        drawLineDDA(225, 350, 280, 350);
+    // Animated scan lines
+    glColor3f(0.35f, 0.85f, 0.8f);
+    for (int i = 0; i < 4; i++) {
+        float lineY = 250 + fmod(screenWave * 20 + i * 28, 100);
+        drawLineDDA(222, lineY, 378, lineY);
     }
+    
+    // Power LED (pulsing green)
+    float glow = 0.5f + 0.5f * sin(glowPhase * 2);
+    glColor3f(0.1f, 0.4f + 0.5f * glow, 0.1f);
+    drawFilledCircle(385, 240, 3, 10);
 }
 
 // Draw the keyboard
@@ -507,47 +539,103 @@ void drawCoffeeCup() {
 
 // Draw wall clock with animated hands
 void drawClock() {
-    // Clock body
-    glColor3f(0.9f, 0.9f, 0.9f);
-    drawFilledCircle(730, 420, 30, 30);
+    // Clock shadow
+    glColor3f(0.7f, 0.5f, 0.35f);
+    drawFilledCircle(733, 417, 34, 40);
     
-    // Clock border using Midpoint Circle
-    glColor3f(0.3f, 0.3f, 0.3f);
-    glPointSize(2);
-    drawCircleMidpoint(730, 420, 32);
-    drawCircleMidpoint(730, 420, 30);
+    // Solid outer ring (dark brown wooden frame)
+    glColor3f(0.35f, 0.22f, 0.12f);
+    drawFilledCircle(730, 420, 36, 40);
     
-    // Clock hour markers
-    glColor3f(0.2f, 0.2f, 0.2f);
+    // Inner ring (lighter wood)
+    glColor3f(0.55f, 0.38f, 0.22f);
+    drawFilledCircle(730, 420, 32, 40);
+    
+    // Clock face (cream white)
+    glColor3f(0.98f, 0.96f, 0.92f);
+    drawFilledCircle(730, 420, 28, 40);
+    
+    // Subtle inner shadow on face
+    glColor3f(0.92f, 0.90f, 0.86f);
+    drawFilledCircle(731, 419, 26, 40);
+    
+    // Clock face center
+    glColor3f(0.98f, 0.96f, 0.92f);
+    drawFilledCircle(730, 420, 24, 40);
+    
+    // Clock hour markers (thicker at 12, 3, 6, 9)
     for (int i = 0; i < 12; i++) {
         float angle = i * 30 * PI / 180;
-        float x1 = 730 + 24 * sin(angle);
-        float y1 = 420 + 24 * cos(angle);
-        float x2 = 730 + 28 * sin(angle);
-        float y2 = 420 + 28 * cos(angle);
+        float x1, y1, x2, y2;
+        if (i % 3 == 0) {
+            // Major markers
+            glColor3f(0.15f, 0.15f, 0.15f);
+            x1 = 730 + 20 * sin(angle);
+            y1 = 420 + 20 * cos(angle);
+            x2 = 730 + 26 * sin(angle);
+            y2 = 420 + 26 * cos(angle);
+            glPointSize(3);
+        } else {
+            // Minor markers
+            glColor3f(0.3f, 0.3f, 0.3f);
+            x1 = 730 + 22 * sin(angle);
+            y1 = 420 + 22 * cos(angle);
+            x2 = 730 + 26 * sin(angle);
+            y2 = 420 + 26 * cos(angle);
+            glPointSize(2);
+        }
         drawLineDDA(x1, y1, x2, y2);
     }
     
-    // Hour hand (ROTATION transformation)
+    // Hour hand (thick, black)
     glColor3f(0.1f, 0.1f, 0.1f);
-    glLineWidth(3);
     float hourAngle = clockMinute * PI / 180;
-    drawLineDDA(730, 420, 730 + 15 * sin(hourAngle), 420 + 15 * cos(hourAngle));
+    glBegin(GL_POLYGON);
+        glVertex2f(730 - 2 * cos(hourAngle), 420 + 2 * sin(hourAngle));
+        glVertex2f(730 + 2 * cos(hourAngle), 420 - 2 * sin(hourAngle));
+        glVertex2f(730 + 14 * sin(hourAngle) + 1 * cos(hourAngle), 420 + 14 * cos(hourAngle) - 1 * sin(hourAngle));
+        glVertex2f(730 + 14 * sin(hourAngle) - 1 * cos(hourAngle), 420 + 14 * cos(hourAngle) + 1 * sin(hourAngle));
+    glEnd();
     
-    // Minute hand
-    glLineWidth(2);
+    // Minute hand (thinner)
+    glColor3f(0.15f, 0.15f, 0.15f);
     float minAngle = clockSecond * 0.5f * PI / 180;
-    drawLineDDA(730, 420, 730 + 22 * sin(minAngle), 420 + 22 * cos(minAngle));
+    glBegin(GL_POLYGON);
+        glVertex2f(730 - 1.5f * cos(minAngle), 420 + 1.5f * sin(minAngle));
+        glVertex2f(730 + 1.5f * cos(minAngle), 420 - 1.5f * sin(minAngle));
+        glVertex2f(730 + 20 * sin(minAngle), 420 + 20 * cos(minAngle));
+    glEnd();
     
-    // Second hand (red, animated)
-    glColor3f(0.8f, 0.1f, 0.1f);
-    glLineWidth(1);
+    // Second hand (red, thin, with counterweight)
+    glColor3f(0.85f, 0.15f, 0.1f);
     float secAngle = clockSecond * PI / 180;
-    drawLineDDA(730, 420, 730 + 25 * sin(secAngle), 420 + 25 * cos(secAngle));
+    glBegin(GL_LINES);
+        glVertex2f(730 - 6 * sin(secAngle), 420 - 6 * cos(secAngle));
+        glVertex2f(730 + 24 * sin(secAngle), 420 + 24 * cos(secAngle));
+    glEnd();
+    // Counterweight circle
+    glColor3f(0.85f, 0.15f, 0.1f);
+    drawFilledCircle(730 - 5 * sin(secAngle), 420 - 5 * cos(secAngle), 2, 10);
     
-    // Center dot
-    glColor3f(0.2f, 0.2f, 0.2f);
-    drawFilledCircle(730, 420, 3, 10);
+    // Center cap (gold/brass)
+    glColor3f(0.85f, 0.7f, 0.3f);
+    drawFilledCircle(730, 420, 4, 15);
+    glColor3f(0.95f, 0.85f, 0.5f);
+    drawFilledCircle(730, 420, 2, 12);
+    
+    // Pendulum below clock
+    glColor3f(0.3f, 0.2f, 0.1f);
+    float pendX = 730 + 15 * sin(pendulumAngle * PI / 180);
+    float pendY = 375;
+    glBegin(GL_LINES);
+        glVertex2f(730, 384);
+        glVertex2f(pendX, pendY);
+    glEnd();
+    // Pendulum bob (gold)
+    glColor3f(0.85f, 0.7f, 0.3f);
+    drawFilledCircle(pendX, pendY - 5, 8, 20);
+    glColor3f(0.95f, 0.85f, 0.5f);
+    drawFilledCircle(pendX, pendY - 5, 5, 15);
 }
 
 // Draw ceiling fan (with rotation animation)
@@ -589,11 +677,22 @@ void drawCeilingFan() {
 
 // ==================== MAIN DISPLAY FUNCTION ====================
 
+// Draw floating dust particles in sunlight
+void drawParticles() {
+    for (int i = 0; i < 5; i++) {
+        float brightness = 0.7f + 0.3f * sin(glowPhase + i);
+        glColor3f(1.0f * brightness, 0.95f * brightness, 0.8f * brightness);
+        float px = particleX[i] + sin(particleY[i] * 0.05f + i) * 10;
+        drawFilledCircle(px, particleY[i], 2, 8);
+    }
+}
+
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     
     // Draw all room elements
     drawRoom();
+    drawParticles();  // Floating dust in light
     drawCeilingFan();
     drawLamp();
     drawPicture();
@@ -641,13 +740,26 @@ void update(int value) {
     clockMinute += 0.1f * deltaTime;
     if (clockMinute >= 360.0f) clockMinute -= 360.0f;
     
-    // Computer screen blink effect
-    blinkCounter++;
-    if (blinkCounter > 180) {
-        computerOn = !computerOn;
-        if (blinkCounter > 190) blinkCounter = 0;
-    } else {
-        computerOn = true;
+    // Pendulum swing animation
+    pendulumAngle += pendulumDir * 45.0f * deltaTime;
+    if (pendulumAngle > 15) {
+        pendulumAngle = 15;
+        pendulumDir = -1;
+    } else if (pendulumAngle < -15) {
+        pendulumAngle = -15;
+        pendulumDir = 1;
+    }
+    
+    // Glow and screen wave effects
+    glowPhase += deltaTime * 3.0f;
+    if (glowPhase > 100) glowPhase -= 100;
+    screenWave += deltaTime * 2.5f;
+    if (screenWave > 100) screenWave -= 100;
+    
+    // Floating dust particles
+    for (int i = 0; i < 5; i++) {
+        particleY[i] += deltaTime * (15 + i * 5);
+        if (particleY[i] > 400) particleY[i] = 120;
     }
     
     glutPostRedisplay();
